@@ -12,7 +12,7 @@ class Article(models.Model):
     date = models.DateField()
     body = models.TextField()
 
-class StockPrice(models.Model):
+class Stock(models.Model):
     date = models.DateField()
     price = models.IntegerField()
     entity = models.ForeignKey(Entity)
