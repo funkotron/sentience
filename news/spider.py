@@ -9,8 +9,8 @@ class Spider():
 
     def __init__(self,
                  entity=None,
-                 start=datetime.now()-timedelta(days=60),
-                 end=datetime.now(),
+                 start=(datetime.now()-timedelta(days=20)).date(),
+                 end=datetime.now().date(),
                  chunk_size=50,
                  total_articles=1000):
         self.entity = entity
@@ -78,8 +78,9 @@ class Spider():
 
     def grab_prices(self):
         #Get stock prices
+        print "END", self.end
         url = urllib.urlencode("http://www.google.co.uk/finance/historical?q=%s:%s&startdate=%s&enddate=%s&output=csv" % (
-              self.sentity.exchange,
+              self.entity.exchange,
               self.entity.ticker,
               self.start.strftime("%b+%d,+%Y"),
               self.end.strftime("%b+%d,+%Y")
@@ -105,4 +106,4 @@ class Spider():
 g = Entity(name="Google",ticker="GOOG",exchange="NASDAQ")
 g.save()
 spider = Spider(entity=g)
-spider.run()
+spider.grab_prices()
