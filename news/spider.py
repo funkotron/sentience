@@ -3,7 +3,7 @@ import re
 import urllib
 import BeautifulSoup
 from datetime import datetime
-import timedelta
+from datetime import timedelta
 
 class Spider():
 
@@ -18,9 +18,6 @@ class Spider():
         self.end = end
         self.chunk_size = chunk_size #How many results to return in one request
         self.total_articles = total_articles
-        self.find_articles()
-        self.grab_prices()
-        return True
 
     def get_visible(self,url):
         #Return the visible text on a page
@@ -39,14 +36,16 @@ class Spider():
         visible_texts = filter(visible, texts)
         return visible_texts
 
-    def find_articles(self)
+    def find_articles(self):
         #Return any article urls related to an entity between two given dates
 
+        start_count = 0
         while True:
-            url = "http://www.google.co.uk/finance/company_news?q=%s:%s&startdate=%s&enddate=%s&start=%d&num=%d"%(self.entity.exchange,
+            url = "http://www.google.co.uk/finance/company_news?q=%s:%s&startdate=%s&enddate=%s&start=%d&num=%d"%(
+                  self.entity.exchange,
                   self.entity.ticker,
-                  self.startdate.strftime("%Y-%m-%d"),
-                  self.enddate.strftime("%Y-%m-%d"),
+                  self.start.strftime("%Y-%m-%d"),
+                  self.end.strftime("%Y-%m-%d"),
                   start_count,
                   self.chunk_size)
             html = urllib.urlopen(url).read()
@@ -57,9 +56,13 @@ class Spider():
             for i in article_list:
                 link = i.find("span",{"class":"name"}).a
                 name = link.text
-                url = link.attrs[0]
+                print link.attrs[0][1]
+                url = link.attrs[0][1]
                 date_text = i.find("span",{"class":"date"}).text
-                date = datetime.strptime(date_text,"%b %d, %Y")
+                try:
+                    date = datetime.strptime(date_text,"%b %d, %Y").date()
+                except:
+                    date = datetime.today().date()
                 src = i.find("span",{"class":"src"}).text
                 body = self.get_visible(url)
                 article = Article(name=name,
@@ -68,11 +71,12 @@ class Spider():
                                   date = date,
                                   body = body)
                 article.save()
+            start_count += self.chunk_size
 
 
         return True
 
-    def grab_prices(self)
+    def grab_prices(self):
         #Get stock prices
         url = urllib.urlencode("http://www.google.co.uk/finance/historical?q=%s:%s&startdate=%s&enddate=%s&output=csv" % (
               self.sentity.exchange,
@@ -93,3 +97,12 @@ class Spider():
 
         return True
 
+    def run(self):
+        self.find_articles()
+        self.grab_prices()
+        return True
+
+g = Entity(name="Google",ticker="GOOG",exchange="NASDAQ")
+g.save()
+spider = Spider(entity=g)
+spider.run()
