@@ -78,18 +78,19 @@ class Spider():
 
     def grab_prices(self):
         #Get stock prices
-        print "END", self.end
-        url = urllib.urlencode("http://www.google.co.uk/finance/historical?q=%s:%s&startdate=%s&enddate=%s&output=csv" % (
+        url = ("http://www.google.co.uk/finance/historical?q=%s:%s&startdate=%s&enddate=%s&output=csv" % (
               self.entity.exchange,
               self.entity.ticker,
-              self.start.strftime("%b+%d,+%Y"),
-              self.end.strftime("%b+%d,+%Y")
+              self.start.strftime("%Y-%m-%d"),
+              self.end.strftime("%Y-%m-%d")
         ))
         html = urllib.urlopen(url).read().split('\n')
         for row in html[1:]:
             fields = row.split(',')
-            date = fields[0]
-            price = fields[4]
+            if not fields[0]:
+                continue
+            date = datetime.strptime(fields[0],"%d-%b-%y")
+            price = int(fields[4].replace('.',''))
             stock = Stock(date=date,
                                price=price,
                                entity=self.entity)
