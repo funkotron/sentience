@@ -1,5 +1,8 @@
 from sentience.news.models import Entity,Article,Stock
-import re
+from sentience.news.html2text import extractFromURL
+import nltk.classify.util
+from nltk.classify import NaiveBayesClassifier
+from django.conf import settings
 import urllib
 import BeautifulSoup
 from datetime import datetime
@@ -9,8 +12,8 @@ class Spider():
 
     def __init__(self,
                  entity=None,
-                 start=(datetime.now()-timedelta(days=20)).date(),
-                 end=datetime.now().date(),
+                 start=(datetime.now()-timedelta(days=60)).date(),
+                 end=(datetime.now()-timedelta(days=30)).date(),
                  chunk_size=50,
                  total_articles=1000):
         self.entity = entity
@@ -18,23 +21,6 @@ class Spider():
         self.end = end
         self.chunk_size = chunk_size #How many results to return in one request
         self.total_articles = total_articles
-
-    def get_visible(self,url):
-        #Return the visible text on a page
-        #Adapted from http://stackoverflow.com/questions/1936466/beautifulsoup-grab-visible-webpage-text
-        html = urllib.urlopen(url).read()
-        soup = BeautifulSoup.BeautifulSoup(html)
-        texts = soup.findAll(text=True)
-
-        def visible(element):
-            if element.parent.name in ['style', 'script', '[document]', 'head', 'title']:
-                return False
-            elif re.match('.*<!--.*-->.*', str(element), re.DOTALL):
-                return False
-            return True
-
-        visible_texts = filter(visible, texts)
-        return visible_texts
 
     def find_articles(self):
         #Return any article urls related to an entity between two given dates
@@ -64,7 +50,10 @@ class Spider():
                 except:
                     date = datetime.today().date()
                 src = i.find("span",{"class":"src"}).text
-                body = self.get_visible(url)
+                try:
+                    body = extractFromURL(url,cache=True)
+                except:
+                    continue
                 article = Article(name=name,
                                   entity=self.entity,
                                   src=src,
@@ -81,8 +70,8 @@ class Spider():
         url = ("http://www.google.co.uk/finance/historical?q=%s:%s&startdate=%s&enddate=%s&output=csv" % (
               self.entity.exchange,
               self.entity.ticker,
-              self.start.strftime("%Y-%m-%d"),
-              self.end.strftime("%Y-%m-%d")
+              (self.start-timedelta(days=getattr(settings,'STOCK_DATE_RANGE',5))).strftime("%Y-%m-%d"),
+              (self.end+timedelta(days=getattr(settings,'STOCK_DATE_RANGE',5))).strftime("%Y-%m-%d")
         ))
         html = urllib.urlopen(url).read().split('\n')
         for row in html[1:]:
@@ -99,12 +88,70 @@ class Spider():
 
         return True
 
+    def label(self):
+        #Mark the articles positive or negative depending on the trend of stock prices around the
+        #date the article was published.
+
+        articles = Article.objects.filter(entity=self.entity)
+
+        for article in articles:
+            date = article.date
+            date_range_length = getattr(settings,'STOCK_DATE_RANGE',5)
+
+            def differential(start):
+                average = 0
+                for i in range(0,date_range_length-1):
+                    day = start + timedelta(days=i)
+                    try:
+                        stock = Stock.objects.filter(entity=self.entity).filter(date=day)[0]
+                    except Exception, e:
+                        print e
+                        continue
+                    average += stock.price
+                return float(average) / date_range_length
+
+            article.score = differential(date)
+            article.save()
+
+    def classify(self):
+        #Classify
+
+        articles = Article.objects.filter(entity=self.entity)
+
+        def word_feats(body):
+            words = body.split(' ')
+            return dict([(word, True) for word in words])
+
+        negids = articles.filter(score__lt=0)
+        posids = articles.filter(score__gt=0)
+
+        negfeats = [(word_feats(a.body), 'neg') for a in negids]
+        posfeats = [(word_feats(a.body), 'pos') for a in posids]
+
+        negcutoff = len(negfeats)*3/4
+        poscutoff = len(posfeats)*3/4
+
+        trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+        testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+        print 'train on %d instances, test on %d instances' % (len(trainfeats), len(testfeats))
+
+        classifier = NaiveBayesClassifier.train(trainfeats)
+        print 'accuracy:', nltk.classify.util.accuracy(classifier, testfeats)
+        classifier.show_most_informative_features()
+
     def run(self):
-        self.find_articles()
         self.grab_prices()
+        self.find_articles()
+        self.label()
+        self.classify()
         return True
 
-g = Entity(name="Google",ticker="GOOG",exchange="NASDAQ")
-g.save()
-spider = Spider(entity=g)
-spider.grab_prices()
+e = Entity.objects.all()
+if e:
+    e=e[0]
+else:
+    e = Entity(name="Google",ticker="GOOG",exchange="NASDAQ")
+    e.save()
+spider = Spider(entity=e)
+#spider.classify()
+spider.run()

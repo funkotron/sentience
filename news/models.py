@@ -11,6 +11,7 @@ class Article(models.Model):
     src = models.CharField(max_length=255)
     date = models.DateField()
     body = models.TextField()
+    score = models.FloatField(blank=True,null=True)
 
 class Stock(models.Model):
     date = models.DateField()

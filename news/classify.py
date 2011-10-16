@@ -2,24 +2,26 @@
 
 import nltk.classify.util
 from nltk.classify import NaiveBayesClassifier
-from nltk.corpus import movie_reviews
 
-def word_feats(words):
-    return dict([(word, True) for word in words])
+def classify(articles):
+    #Classify
 
-negids = movie_reviews.fileids('neg')
-posids = movie_reviews.fileids('pos')
+    def word_feats(words):
+        return dict([(word, True) for word in words])
 
-negfeats = [(word_feats(movie_reviews.words(fileids=[f])), 'neg') for f in negids]
-posfeats = [(word_feats(movie_reviews.words(fileids=[f])), 'pos') for f in posids]
+    negids = articles.filter(score__lt=0)
+    posids = articles.filter(score__gt=0)
 
-negcutoff = len(negfeats)*3/4
-poscutoff = len(posfeats)*3/4
+    negfeats = [(word_feats(a.body), 'neg') for a in negids]
+    posfeats = [(word_feats(a.body), 'pos') for a in posids]
 
-trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
-testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
-print 'train on %d instances, test on %d instances' % (len(trainfeats), len(testfeats))
+    negcutoff = len(negfeats)*3/4
+    poscutoff = len(posfeats)*3/4
 
-classifier = NaiveBayesClassifier.train(trainfeats)
-print 'accuracy:', nltk.classify.util.accuracy(classifier, testfeats)
-classifier.show_most_informative_features()
+    trainfeats = negfeats[:negcutoff] + posfeats[:poscutoff]
+    testfeats = negfeats[negcutoff:] + posfeats[poscutoff:]
+    print 'train on %d instances, test on %d instances' % (len(trainfeats), len(testfeats))
+
+    classifier = NaiveBayesClassifier.train(trainfeats)
+    print 'accuracy:', nltk.classify.util.accuracy(classifier, testfeats)
+    classifier.show_most_informative_features()
