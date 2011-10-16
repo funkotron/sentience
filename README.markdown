@@ -16,4 +16,4 @@ This project is a Django/Python rewrite of my 3rd year project, written in Java.
 
 Uses the [article body extraction code](http://www.chrisspen.com/blog/how-to-extract-a-webpage%E2%80%99s-main-article-content-the-unicode-edition.html) html2text.py from Chris Pen
 
-TODO: Add graphs from [http://square.github.com/cube/][]
+TODO: Add graphs from http://square.github.com/cube/
